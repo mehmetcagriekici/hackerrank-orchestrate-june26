@@ -163,9 +163,6 @@ class Rag:
                 flags_list.append(flags)
                 logger.debug(f"Image {idx}: quality flags {flags}")
                 
-            except FileNotFoundError as e:
-                logger.warning(f"Image {idx} not found: {str(e)}")
-                flags_list.append(["invalid_image"])
             except Exception as e:
                 logger.error(f"Error classifying quality for image {idx}: {str(e)}", exc_info=False)
                 flags_list.append(["invalid_image"])
@@ -233,9 +230,6 @@ class Rag:
                 results.append(result)
                 logger.debug(f"Image {idx}: object={detected_obj_clean}, part={detected_part}, mismatch={mismatch}")
                 
-            except FileNotFoundError as e:
-                logger.warning(f"Image {idx} not found: {str(e)}")
-                results.append({"object": "unknown", "object_part": "unknown", "object_mismatch": False})
             except Exception as e:
                 logger.error(f"Error classifying object/part for image {idx}: {str(e)}", exc_info=False)
                 results.append({"object": "unknown", "object_part": "unknown", "object_mismatch": False})
@@ -273,9 +267,6 @@ class Rag:
                 results.append(detected)
                 logger.debug(f"Image {idx}: damage_type={detected}")
                 
-            except FileNotFoundError as e:
-                logger.warning(f"Image {idx} not found: {str(e)}")
-                results.append("unknown")
             except Exception as e:
                 logger.error(f"Error classifying damage for image {idx}: {str(e)}", exc_info=False)
                 results.append("unknown")
@@ -315,9 +306,6 @@ class Rag:
                 results.append(sev)
                 logger.debug(f"Image {idx}: severity={sev}")
                 
-            except FileNotFoundError as e:
-                logger.warning(f"Image {idx} not found: {str(e)}")
-                results.append("unknown")
             except Exception as e:
                 logger.error(f"Error classifying severity for image {idx}: {str(e)}", exc_info=False)
                 results.append("unknown")

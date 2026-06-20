@@ -1,161 +1,120 @@
-# HackerRank Orchestrate
+# Damage Claim Verification System
 
-Starter repository for the **HackerRank Orchestrate** 24-hour hackathon.
+Processes damage claims (images + user description) and decides whether submitted evidence **supports**, **contradicts**, or provides **not enough information** to evaluate the claim.
 
-Build a system that verifies visual evidence for damage claims across three object types: **cars**, **laptops**, and **packages**.
+## Prerequisites
 
-Your system will receive claim conversations, one or more submitted images, user claim history, and minimum evidence requirements. It must decide whether the submitted images support the claim, contradict it, or do not provide enough information.
+- Docker + Docker Compose
+- Python 3.9+
+- `pip install sentence-transformers pillow requests`
 
-Read [`problem_statement.md`](./problem_statement.md) for the full task spec, input/output schema, and allowed values.
+## Setup
 
----
-
-## Contents
-
-1. [Repository layout](#repository-layout)
-2. [What you need to build](#what-you-need-to-build)
-3. [Where your code goes](#where-your-code-goes)
-4. [Quickstart](#quickstart)
-5. [Evaluation](#evaluation)
-6. [Chat transcript logging](#chat-transcript-logging)
-7. [Submission](#submission)
-8. [Judge interview](#judge-interview)
-
----
-
-## Repository layout
-
-```text
-.
-├── AGENTS.md                         # Rules for AI coding tools + transcript logging
-├── problem_statement.md              # Full task description and I/O schema
-├── README.md                         # You are here
-├── code/                             # Build your solution here
-│   ├── main.py                       # Suggested terminal entry point
-│   └── evaluation/
-│       └── main.py                   # Suggested evaluation entry point
-└── dataset/
-    ├── sample_claims.csv             # Inputs + expected outputs for development
-    ├── claims.csv                    # Inputs only; run your system on these rows
-    ├── user_history.csv              # Historical claim counts and risk context
-    ├── evidence_requirements.csv     # Minimum image evidence requirements
-    └── images/
-        ├── sample/                   # Images referenced by sample_claims.csv
-        └── test/                     # Images referenced by claims.csv
-```
-
----
-
-## What you need to build
-
-A system that, for each row in `dataset/claims.csv`, produces one row in `output.csv`.
-
-Input fields:
-
-| Column | Meaning |
-|---|---|
-| `user_id` | User submitting the claim; use this to look up `dataset/user_history.csv` |
-| `image_paths` | One or more submitted image paths, separated by semicolons |
-| `user_claim` | Chat transcript describing the issue |
-| `claim_object` | `car`, `laptop`, or `package` |
-
-Required output fields:
-
-| Column | Meaning |
-|---|---|
-| `evidence_standard_met` | Whether the image set is sufficient to evaluate the claim |
-| `evidence_standard_met_reason` | Short reason for the evidence decision |
-| `risk_flags` | Semicolon-separated risk flags, or `none` |
-| `issue_type` | Visible issue type |
-| `object_part` | Relevant object part |
-| `claim_status` | `supported`, `contradicted`, or `not_enough_information` |
-| `claim_status_justification` | Concise explanation grounded in the image evidence |
-| `supporting_image_ids` | Image IDs supporting the decision, or `none` |
-| `valid_image` | Whether the image set is usable for automated review |
-| `severity` | `none`, `low`, `medium`, `high`, or `unknown` |
-
-Hard requirements:
-
-- Must read the provided CSV files and local images.
-- Must produce `output.csv` with the exact schema in `problem_statement.md`.
-- Must include an evaluation workflow
-- Must avoid hardcoded test labels or file-specific answers.
-
-Beyond that you are free to bring your own approach: VLMs, LLMs, structured prompting, rule layers, batching, caching, evaluation pipelines, model comparison, or anything else.
-
----
-
-## Where your code goes
-
-All of your work belongs in [`code/`](./code/). The repo ships with empty starter files that you can grow into your full solution.
-
-Suggested conventions:
-
-- Put your main runnable solution in `code/main.py`, or document your own entry point clearly.
-- Put evaluation code under `code/evaluation/` or an `evaluation/` folder included in your final `code.zip`.
-- Write final predictions to `output.csv`.
-
----
-
-## Quickstart
-
-Clone this repository:
+### 1. Start Ollama
 
 ```bash
-git clone git@github.com:interviewstreet/hackerrank-orchestrate-june26.git
-cd hackerrank-orchestrate-june26
+cd code
+docker compose up -d
 ```
 
-You are free to use any language or runtime. Python, JavaScript, and TypeScript are all reasonable choices.
+Wait ~30 seconds for the container to be healthy, then pull the model:
 
----
+```bash
+docker exec ollama-server ollama pull llama3.2:1b
+```
 
-## Evaluation
+Verify it's ready:
 
-The evaluation report should include:
+```bash
+curl http://localhost:11434/api/tags
+```
 
-- metrics on `dataset/sample_claims.csv`
-- at least two strategies, prompts, or model configurations compared
-- the final strategy used for `output.csv`
-- operational analysis covering model calls, token usage, image usage, approximate cost, runtime, and TPM/RPM considerations
+### 2. Install Python dependencies
 
----
+From the repo root:
 
-## Chat transcript logging
+```bash
+pip install sentence-transformers pillow requests
+```
 
-This repo ships with an `AGENTS.md` that modern AI coding tools may read. It instructs the tool to append conversation turns to a shared log file:
+The CLIP model (`clip-ViT-L-14`) downloads automatically on first run (~900 MB).
 
-| Platform | Path |
+## Running
+
+All commands must be run from the **repo root** (the folder containing `dataset/` and `code/`).
+
+### Production — full dataset
+
+```bash
+python run.py
+```
+
+Reads `dataset/claims.csv`, writes `output.csv`.
+
+### Development — sample dataset (labeled, for validation)
+
+`dataset/sample_claims.csv` has ground-truth labels in all 14 columns. Run against it to spot-check quality before the full run:
+
+```bash
+python - <<'EOF'
+import sys
+sys.path.insert(0, 'code')
+from agent.agent import Agent
+
+agent = Agent(ollama_url="http://localhost:11434", model_name="llama3.2:1b")
+agent.run(input_csv='dataset/sample_claims.csv', output_csv='sample_output.csv')
+EOF
+```
+
+Then compare `sample_output.csv` against `dataset/sample_claims.csv`.
+
+## Output
+
+`output.csv` — 14 columns, one row per claim:
+
+| Column | Values |
 |---|---|
-| macOS / Linux | `$HOME/hackerrank_orchestrate/log.txt` |
-| Windows | `%USERPROFILE%\hackerrank_orchestrate\log.txt` |
+| `user_id` | passthrough |
+| `image_paths` | passthrough |
+| `user_claim` | passthrough |
+| `claim_object` | passthrough |
+| `evidence_standard_met` | `true` / `false` |
+| `evidence_standard_met_reason` | short explanation |
+| `risk_flags` | semicolon-separated or `none` |
+| `issue_type` | dent, scratch, crack, glass_shatter, broken_part, missing_part, torn_packaging, crushed_packaging, water_damage, stain, none, unknown |
+| `object_part` | e.g. door, screen, box, unknown |
+| `claim_status` | `supported` / `contradicted` / `not_enough_information` |
+| `claim_status_justification` | narrative explanation |
+| `supporting_image_ids` | semicolon-separated image IDs or `none` |
+| `valid_image` | `true` / `false` |
+| `severity` | none, low, medium, high, unknown |
 
-You will upload this log as your chat transcript at submission time. The chat transcript means your conversation with the AI coding tool you used to build the system. It is not the runtime logs, reasoning trace, or conversation history produced by the claim-verification agent you are building.
+## Logs
 
-If you use multiple AI tools, include the relevant conversation logs from all of them in the same transcript file. Separate each tool's section with a clear divider and label it with the tool name.
+Appended to `~/hackerrank_orchestrate/log.txt` and printed to stdout.
 
-Never paste secrets into the chat. If secrets are needed, use environment variables.
+## Architecture
 
----
+```
+Agent (orchestrator)
+  └── Organizer (data assembly)
+        └── RAG (CLIP vision layer — clip-ViT-L-14)
+  └── LLMReasoner (Ollama — llama3.2:1b)
+```
 
-## Submission
+- **RAG** — encodes claim text and images with CLIP, classifies damage type, severity, object/part, quality flags
+- **Organizer** — loads user history + evidence requirements, assembles context dict, computes `evidence_standard_met`
+- **LLMReasoner** — sends organized context to Ollama, parses and validates the 14-field JSON response
+- **Agent** — iterates claims CSV, coordinates the pipeline, writes output CSV
 
-Submit the following files as instructed by HackerRank:
+## Tuning
 
-1. **Code zip**: zip your runnable solution, README, prompts/configs, and evaluation folder. Exclude virtualenvs, `node_modules`, build artifacts, and unnecessary generated files.
-2. **Predictions CSV**: your final `output.csv` for all rows in `dataset/claims.csv`.
-3. **Chat transcript**: the `log.txt` from the path in [Chat transcript logging](#chat-transcript-logging).
+Three thresholds control evidence sensitivity:
 
-Before submitting, confirm:
+| Constant | File | Default | Effect |
+|---|---|---|---|
+| `QUALITY_THRESHOLDS` | `code/rag/rag.py` | various | CLIP score cutoffs for blurry/dark/cropped flags |
+| `CLAIM_SIMILARITY_THRESHOLD` | `code/organizer/organizer.py` | `0.20` | Min claim-image similarity to count a damage detection as valid |
+| `EVIDENCE_MATCH_THRESHOLD` | `code/organizer/organizer.py` | `0.22` | Min evidence-requirement match score |
 
-- `output.csv` has one row per row in `dataset/claims.csv`.
-- `output.csv` has the exact required columns in the exact required order.
-- Your evaluation files are included in `code.zip`.
-
----
-
-## Judge interview
-
-After submission, the AI Judge may ask about your approach, implementation decisions, model usage, evaluation strategy, and how you used AI while building the solution.
-
-Be prepared to explain your solution in detail.
+Use `dataset/sample_claims.csv` (ground truth included) to calibrate these before running on the full dataset.

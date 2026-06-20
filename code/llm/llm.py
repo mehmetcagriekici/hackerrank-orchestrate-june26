@@ -217,7 +217,14 @@ IMPORTANT NOTES:
 - Consider user history and risk factors in risk_flags
 - Always respond with valid JSON
 - Use 'none' or 'unknown' as fallbacks
-- Return ONLY valid JSON, no explanatory text"""
+- Return ONLY valid JSON, no explanatory text
+
+STRICT FORMAT RULES — violating these will cause processing errors:
+- risk_flags MUST be a plain STRING like "blurry_image;manual_review_required" or "none". NOT a dict, NOT a list.
+- issue_type MUST be a single word string like "dent" or "unknown". NOT a dict.
+- claim_status MUST be exactly one of: "supported", "contradicted", "not_enough_information". NOT a dict.
+- severity MUST be exactly one of: "none", "low", "medium", "high", "unknown". NOT a dict or number.
+- evidence_standard_met and valid_image MUST be the string "true" or "false". NOT a boolean."""
     
     def _build_user_message(self, context: dict[str, Any]) -> str:
         """Build user message containing organized context."""
@@ -334,7 +341,7 @@ IMPORTANT NOTES:
             response = requests.post(
                 f"{self.ollama_url}/api/chat",
                 json=payload,
-                timeout=120
+                timeout=300
             )
             response.raise_for_status()
             

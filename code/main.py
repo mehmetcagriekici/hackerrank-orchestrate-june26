@@ -8,7 +8,7 @@ def main():
     try:
         agent = Agent(
             ollama_url="http://localhost:11434",
-            model_name="mistral"
+            model_name="llama3.2:1b"
         )
         
         success = agent.run(

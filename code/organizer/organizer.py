@@ -16,6 +16,8 @@ class Organizer:
     
     # Evidence match threshold (tunable on sample_claims.csv)
     EVIDENCE_MATCH_THRESHOLD = 0.22
+    # Minimum claim-image similarity to count a damage detection as valid signal
+    CLAIM_SIMILARITY_THRESHOLD = 0.20
     
     def __init__(self):
         logger.info("Initializing Organizer")
@@ -138,7 +140,7 @@ class Organizer:
             image_ids = []
         else:
             try:
-                image_paths = [p.strip() for p in image_paths_str.split(';') if p.strip()]
+                image_paths = [str(Path("dataset") / p.strip()) for p in image_paths_str.split(';') if p.strip()]
                 image_ids = [Path(p).stem for p in image_paths]
                 logger.debug(f"Parsed {len(image_paths)} image paths")
             except Exception as e:
@@ -220,7 +222,7 @@ class Organizer:
         evidence_matches = rag_result.get('evidence_matches', [])
         
         # Compute evidence_standard_met
-        evidence_standard_met = self._compute_evidence_met(damage_types, evidence_matches)
+        evidence_standard_met = self._compute_evidence_met(damage_types, evidence_matches, claim_similarities)
         
         # Compute valid_image (no invalid_image flags)
         valid_image = all("invalid_image" not in f for f in rag_result.get('quality_flags', []))
@@ -313,25 +315,32 @@ class Organizer:
         logger.debug(f"Aggregated quality flags: {result}")
         return result
     
-    def _compute_evidence_met(self, damage_types, evidence_matches):
+    def _compute_evidence_met(self, damage_types, evidence_matches, claim_similarities=None):
         """
         Check if image evidence meets minimum standard for claim evaluation.
-        
+
         Logic:
-        - True if any visible damage detected
+        - True if visible damage detected on an image with sufficient claim similarity
         - Or if evidence requirement match is strong
-        
+
         Args:
             damage_types: List of detected damage types per image
             evidence_matches: List of evidence match scores per image
-        
+            claim_similarities: List of claim-image similarity scores per image
+
         Returns:
             Boolean indicating if evidence standard is met
         """
-        # Check for valid damage
-        has_valid_damage = any(d not in ("none", "unknown") for d in damage_types)
+        # Damage detection only counts if the image is meaningfully related to the claim
+        sims = claim_similarities or [None] * len(damage_types)
+        has_valid_damage = any(
+            d not in ("none", "unknown") and (
+                s is None or s >= self.CLAIM_SIMILARITY_THRESHOLD
+            )
+            for d, s in zip(damage_types, sims)
+        )
         if has_valid_damage:
-            logger.debug("Evidence standard met: valid damage detected")
+            logger.debug("Evidence standard met: valid damage detected with sufficient claim similarity")
             return True
         
         # Check evidence requirement matches

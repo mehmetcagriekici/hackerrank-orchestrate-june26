@@ -180,11 +180,13 @@ class Agent:
         except Exception as e:
             logger.error(f"  ? Failed: {str(e)}", exc_info=False)
             self.stats['processed_with_error'] += 1
-            
-            # Add fallback output
-            fallback = self._error_fallback(row, str(e))
-            self.output_rows.append(fallback)
-            logger.info("Using fallback output")
+            fallback_ctx = {
+                'user_id': user_id,
+                'image_paths': row.get('image_paths', ''),
+                'user_claim': row.get('user_claim', ''),
+                'claim_object': row.get('claim_object', 'unknown'),
+            }
+            self.output_rows.append(self.llm._error_output(fallback_ctx, str(e)))
     
     def _write_output_csv(self, output_path: str) -> bool:
         """
@@ -219,34 +221,6 @@ class Agent:
         except Exception as e:
             logger.error(f"? Failed to write output CSV: {str(e)}", exc_info=True)
             return False
-    
-    def _error_fallback(self, row: dict[str, str], error_msg: str) -> dict[str, str]:
-        """
-        Generate fallback output when claim processing fails.
-        
-        Args:
-            row: Original input row
-            error_msg: Error message
-        
-        Returns:
-            Fallback output dict
-        """
-        return {
-            'user_id': str(row.get('user_id', 'unknown')),
-            'image_paths': str(row.get('image_paths', 'none')),
-            'user_claim': str(row.get('user_claim', '')),
-            'claim_object': str(row.get('claim_object', 'unknown')),
-            'evidence_standard_met': 'false',
-            'evidence_standard_met_reason': f'Processing error: {error_msg[:80]}',
-            'risk_flags': 'manual_review_required',
-            'issue_type': 'unknown',
-            'object_part': 'unknown',
-            'claim_status': 'not_enough_information',
-            'claim_status_justification': 'Unable to process claim due to technical error. Manual review required.',
-            'supporting_image_ids': 'none',
-            'valid_image': 'false',
-            'severity': 'unknown'
-        }
     
     def _log_summary(self, elapsed_seconds: float):
         """
